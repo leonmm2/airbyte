@@ -23,7 +23,7 @@ dynamic_streams:
           batch_size: 0
         partition_router:
           type: CustomPartitionRouter
-          class_name: "source_google_sheets.components.partition_routers.RangePartitionRouter"
+          class_name: "source_google_sheets.components.RangePartitionRouter"
         paginator:
           type: NoPagination
         record_selector:
