@@ -2,7 +2,10 @@
 # Copyright (c) 2025 Airbyte, Inc., all rights reserved.
 #
 
+from __future__ import annotations
+
 from dataclasses import dataclass
+from pydantic.v1 import BaseModel, Extra
 from typing import Any, Dict, Iterable, List, Mapping, MutableMapping, Optional, Union
 from requests.status_codes import codes as status_codes
 
@@ -237,6 +240,76 @@ class RangePartitionRouter(SinglePartitionRouter):
             logger.info(f"Fetching range {self.sheet_id}!{start_range}:{end_range}")
             yield StreamSlice(partition={"start_range": start_range, "end_range": end_range}, cursor_slice={})
             start_range = end_range + 1
+
+# Spreadsheet Models
+
+class SpreadsheetProperties(BaseModel):
+    class Config:
+        extra = Extra.allow
+
+    title: Optional[str] = None
+
+
+class SheetProperties(BaseModel):
+    class Config:
+        extra = Extra.allow
+
+    title: Optional[str] = None
+
+
+class CellData(BaseModel):
+    class Config:
+        extra = Extra.allow
+
+    formattedValue: Optional[str] = None
+
+
+class RowData(BaseModel):
+    class Config:
+        extra = Extra.allow
+
+    values: Optional[List[CellData]] = None
+
+
+class GridData(BaseModel):
+    class Config:
+        extra = Extra.allow
+
+    rowData: Optional[List[RowData]] = None
+
+
+class Sheet(BaseModel):
+    class Config:
+        extra = Extra.allow
+
+    data: Optional[List[GridData]] = None
+    properties: Optional[SheetProperties] = None
+
+
+class Spreadsheet(BaseModel):
+    class Config:
+        extra = Extra.allow
+
+    spreadsheetId: str
+    sheets: List[Sheet]
+    properties: Optional[SpreadsheetProperties] = None
+
+# Spreadsheet Values Models
+
+class ValueRange(BaseModel):
+    class Config:
+        extra = Extra.allow
+
+    values: Optional[List[List[str]]] = None
+
+
+class SpreadsheetValues(BaseModel):
+    class Config:
+        extra = Extra.allow
+
+    spreadsheetId: str
+    valueRanges: List[ValueRange]
+
 
 
 def name_conversion(text: str) -> str:
