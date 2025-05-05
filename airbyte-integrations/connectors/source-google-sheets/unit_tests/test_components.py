@@ -11,7 +11,7 @@ import pytest
 import requests
 from source_google_sheets import SourceGoogleSheets
 from source_google_sheets.components import DpathSchemaExtractor, DpathSchemaMatchingExtractor
-from source_google_sheets.components.components import RawSchemaParser
+from source_google_sheets.components import RawSchemaParser
 
 from airbyte_cdk.connector_builder.connector_builder_handler import resolve_manifest
 from airbyte_cdk.models import SyncMode
