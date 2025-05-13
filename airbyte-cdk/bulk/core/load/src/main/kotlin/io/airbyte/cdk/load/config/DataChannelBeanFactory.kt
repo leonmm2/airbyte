@@ -7,6 +7,8 @@ package io.airbyte.cdk.load.config
 import io.airbyte.cdk.load.command.DestinationCatalog
 import io.airbyte.cdk.load.command.DestinationConfiguration
 import io.airbyte.cdk.load.command.DestinationStream
+import io.airbyte.cdk.load.file.Socket
+import io.airbyte.cdk.load.file.SocketInputFlow
 import io.airbyte.cdk.load.message.ChannelMessageQueue
 import io.airbyte.cdk.load.message.CheckpointMessageWrapped
 import io.airbyte.cdk.load.message.DestinationRecordRaw
@@ -40,10 +42,19 @@ typealias PipelineInputEvent = PipelineEvent<StreamKey, DestinationRecordRaw>
 class DataChannelBeanFactory {
     @Singleton
     fun dataChannelMedium(
-        @Value("\${airbyte.destination.core.data-channel-medium}")
+        @Value("\${airbyte.destination.core.data-channel.medium}")
         dataChannelMedium: DataChannelMedium
     ): DataChannelMedium {
         return dataChannelMedium
+    }
+
+    @Singleton
+    @Named("dataChannelSocketPaths")
+    fun dataChannelSocketPaths(
+        @Value("\${airbyte.destination.core.data-channel.socket-paths}")
+        socketPaths: List<String>
+    ): List<String> {
+        return socketPaths
     }
 
     /**
@@ -56,8 +67,17 @@ class DataChannelBeanFactory {
     fun numInputPartitions(
         loadStrategy: LoadStrategy? = null,
         @Named("isFileTransfer") isFileTransfer: Boolean = false,
+        dataChannelMedium: DataChannelMedium
     ): Int {
-        return if (isFileTransfer) 1 else loadStrategy?.inputPartitions ?: 1
+        return when (dataChannelMedium) {
+            DataChannelMedium.STDIO -> {
+                if (isFileTransfer) 1 else loadStrategy?.inputPartitions ?: 1
+            }
+            DataChannelMedium.SOCKETS -> {
+                // For the first cut we'll limit ourselves to 1
+                1
+            }
+        }
     }
 
     /**
@@ -70,7 +90,7 @@ class DataChannelBeanFactory {
      */
     @Singleton
     @Named("_pipelineInputQueue")
-    @Requires(property = "airbyte.destination.core.data-channel-medium", value = "STDIO")
+    @Requires(property = "airbyte.destination.core.data-channel.medium", value = "STDIO")
     fun pipelineInputQueue(
         @Named("numInputPartitions") numInputPartitions: Int,
     ): PartitionedQueue<PipelineInputEvent> {
@@ -98,14 +118,29 @@ class DataChannelBeanFactory {
     fun dataChannelInputFlows(
         @Named("_pipelineInputQueue")
         pipelineInputQueue: PartitionedQueue<PipelineInputEvent>? = null,
-        dataChannelMedium: DataChannelMedium
+        dataChannelMedium: DataChannelMedium,
+        @Named("numInputPartitions") numInputPartitions: Int,
+        @Named("dataChannelSocketPaths") socketPaths: List<String>,
+        @Value("\${airbyte.destination.core.data-channel.buffer-size-bytes}") bufferSizeBytes: Int,
+        @Value("\${airbyte.destination.core.data-channel.set-socket-permissions}") setSocketPermissions: Boolean
     ): Array<Flow<PipelineInputEvent>> {
-        when (dataChannelMedium) {
+        return when (dataChannelMedium) {
             DataChannelMedium.STDIO -> {
-                return pipelineInputQueue!!.asOrderedFlows()
+                pipelineInputQueue!!.asOrderedFlows()
             }
-            DataChannelMedium.SOCKETS ->
-                throw NotImplementedError("Socket data channel medium is not implemented yet.")
+            DataChannelMedium.SOCKETS -> {
+                check(socketPaths.size == numInputPartitions) {
+                    "Socket paths size (${socketPaths.size}) does not match number of input partitions ($numInputPartitions)"
+                }
+                socketPaths.map { path ->
+                    val socket = Socket(
+                        path,
+                        bufferSizeBytes,
+                        setPermissions = setSocketPermissions
+                    )
+                    SocketInputFlow(socket)
+                }.toTypedArray()
+            }
         }
     }
 
@@ -113,7 +148,7 @@ class DataChannelBeanFactory {
      * Sockets will be implemented as cold flows, so a task is only needed for reading from STDIO.
      */
     @Singleton
-    @Requires(property = "airbyte.destination.core.data-channel-medium", value = "STDIO")
+    @Requires(property = "airbyte.destination.core.data-channel.medium", value = "STDIO")
     fun stdioInputConsumerTask(
         dataChannelMedium: DataChannelMedium,
         catalog: DestinationCatalog,
@@ -143,7 +178,7 @@ class DataChannelBeanFactory {
      * in the readers.
      */
     @Singleton
-    @Requires(property = "airbyte.destination.core.data-channel-medium", value = "STDIO")
+    @Requires(property = "airbyte.destination.core.data-channel.medium", value = "STDIO")
     fun stdioHeartbeatTask(
         @Named("_pipelineInputQueue")
         pipelineInputQueue: PartitionedQueue<PipelineInputEvent>? = null,
