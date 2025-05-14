@@ -30,6 +30,6 @@ acceptance_tests:
     bypass_reason: "Incremental sync are not supported on this connector"
   spec:
     tests:
-      - spec_path: source_google_sheets/spec.yaml
+      - spec_path: manifest.yaml
         backward_compatibility_tests_config:
           disable_for_version: "0.3.6"
