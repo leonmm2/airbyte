@@ -203,6 +203,11 @@ enum class UnknownTypesBehavior {
     FAIL,
 }
 
+// eventually we'll put some parameters in here (e.g. CDC deletes as soft vs hard delete)
+// and should switch it to a data class.
+// but for now, that would be a compiler error, so just use a normal class.
+class DedupBehavior
+
 abstract class BasicFunctionalityIntegrationTest(
     /** The config to pass into the connector, as a serialized JSON blob */
     configContents: String,
@@ -227,7 +232,7 @@ abstract class BasicFunctionalityIntegrationTest(
      * retroactive schemas: writing a new file without a column has no effect on older files.
      */
     val isStreamSchemaRetroactive: Boolean,
-    val supportsDedup: Boolean,
+    val dedupBehavior: DedupBehavior?,
     val stringifySchemalessObjects: Boolean,
     val schematizedObjectBehavior: SchematizedNestedValueBehavior,
     val schematizedArrayBehavior: SchematizedNestedValueBehavior,
@@ -437,6 +442,7 @@ abstract class BasicFunctionalityIntegrationTest(
     @Test
     open fun testMidSyncCheckpointingStreamState(): Unit =
         runBlocking(Dispatchers.IO) {
+            assumeTrue(verifyDataWriting)
             val stream =
                 DestinationStream(
                     DestinationStream.Descriptor(randomizedNamespace, "test_stream"),
@@ -1519,7 +1525,8 @@ abstract class BasicFunctionalityIntegrationTest(
 
     @Test
     open fun testDedup() {
-        assumeTrue(supportsDedup)
+        assumeTrue(verifyDataWriting)
+        assumeTrue(dedupBehavior != null)
         fun makeStream(syncId: Long) =
             DestinationStream(
                 DestinationStream.Descriptor(randomizedNamespace, "test_stream"),
@@ -1661,7 +1668,8 @@ abstract class BasicFunctionalityIntegrationTest(
 
     @Test
     open fun testDedupWithStringKey() {
-        assumeTrue(supportsDedup)
+        assumeTrue(verifyDataWriting)
+        assumeTrue(dedupBehavior != null)
         fun makeStream(syncId: Long) =
             DestinationStream(
                 DestinationStream.Descriptor(randomizedNamespace, "test_stream"),
@@ -1810,7 +1818,8 @@ abstract class BasicFunctionalityIntegrationTest(
      */
     @Test
     open fun testDedupChangeCursor() {
-        assumeTrue(verifyDataWriting && supportsDedup)
+        assumeTrue(verifyDataWriting)
+        assumeTrue(dedupBehavior != null)
         fun makeStream(cursor: String) =
             DestinationStream(
                 DestinationStream.Descriptor(randomizedNamespace, "test_stream"),
@@ -3040,6 +3049,7 @@ abstract class BasicFunctionalityIntegrationTest(
 
     @Test
     open fun testClear() {
+        assumeTrue(verifyDataWriting)
         val stream =
             DestinationStream(
                 DestinationStream.Descriptor(randomizedNamespace, "test_stream"),
