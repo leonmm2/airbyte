@@ -123,8 +123,8 @@ class StandardInsertRawOverride :
 
 class StandardInsert : BigqueryTDWriteTest(BigQueryDestinationTestUtils.standardInsertConfig) {
     @Test
-    override fun testDedup() {
-        super.testDedup()
+    override fun testTruncateRefresh() {
+        super.testTruncateRefresh()
     }
 }
 
